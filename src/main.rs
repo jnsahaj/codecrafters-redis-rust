@@ -1,15 +1,27 @@
-// Uncomment this block to pass the first stage
-// use std::net::TcpListener;
+use std::{
+    io::{Read, Write},
+    net::{TcpListener, TcpStream},
+};
 
-use std::net::TcpListener;
+fn handle_client(mut stream: TcpStream) {
+    let mut buf = [0u8; 1024];
+
+    stream
+        .read(&mut buf[..])
+        .expect("Failed to read from client!");
+
+    stream
+        .write_all(b"+PONG\r\n")
+        .expect("Failed to write to stream!");
+}
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:6379").unwrap();
 
     for stream in listener.incoming() {
         match stream {
-            Ok(_stream) => {
-                println!("accepted new connection");
+            Ok(stream) => {
+                handle_client(stream);
             }
             Err(e) => {
                 println!("error: {}", e);
