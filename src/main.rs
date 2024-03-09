@@ -1,8 +1,12 @@
+mod redis;
+mod resp;
 use std::{
-    io::{Read, Write},
+    io::Read,
     net::{TcpListener, TcpStream},
     thread,
 };
+
+use crate::redis::Redis;
 
 fn handle_client(mut stream: TcpStream) {
     let mut buf = [0u8; 1024];
@@ -16,9 +20,12 @@ fn handle_client(mut stream: TcpStream) {
             return;
         }
 
-        stream
-            .write_all(b"+PONG\r\n")
-            .expect("Failed to write to stream!");
+        println!("reading {} bytes...", read_bytes);
+        println!("data (raw):  {:?}", buf);
+        println!("data (str):  {:?}", String::from_utf8_lossy(&buf));
+
+        let mut redis = Redis::new(&stream);
+        redis.eval(&buf[..]);
     }
 }
 
