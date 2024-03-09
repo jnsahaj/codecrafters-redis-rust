@@ -6,13 +6,19 @@ use std::{
 fn handle_client(mut stream: TcpStream) {
     let mut buf = [0u8; 1024];
 
-    stream
-        .read(&mut buf[..])
-        .expect("Failed to read from client!");
+    loop {
+        let read_bytes = stream
+            .read(&mut buf[..])
+            .expect("Failed to read from client!");
 
-    stream
-        .write_all(b"+PONG\r\n")
-        .expect("Failed to write to stream!");
+        if read_bytes == 0 {
+            return;
+        }
+
+        stream
+            .write_all(b"+PONG\r\n")
+            .expect("Failed to write to stream!");
+    }
 }
 
 fn main() {
