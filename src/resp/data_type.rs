@@ -6,21 +6,19 @@ pub enum DataType {
 }
 
 impl DataType {
-    pub fn cmp_string(&self, s: &str) -> bool {
-        let a = match self {
-            DataType::SimpleString(s) => s,
-            DataType::BulkString(s) => s,
-            _ => return false,
-        };
-
-        s == a
-    }
-
     pub fn try_into_string(&self) -> Result<String, String> {
         match self {
             DataType::SimpleString(s) => Ok(s.to_string()),
             DataType::BulkString(s) => Ok(s.to_string()),
-            other => Err(format!("Cannot convert {} into string", stringify!(other))),
+            _other => Err(format!("Cannot convert {} into string", stringify!(other))),
+        }
+    }
+
+    pub fn try_into_usize(&self) -> Result<usize, String> {
+        let s = self.try_into_string()?;
+        match s.parse::<usize>() {
+            Ok(v) => Ok(v),
+            _ => Err(format!("Cannot convert {} into usize", s)),
         }
     }
 }

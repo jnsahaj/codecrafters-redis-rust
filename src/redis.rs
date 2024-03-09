@@ -24,7 +24,7 @@ impl Redis {
         match cmd {
             Command::Ping => self.pong(stream),
             Command::Echo(s) => self.echo(stream, &s),
-            Command::Set(k, v) => self.set(stream, &k, &v),
+            Command::Set(k, v, e) => self.set(stream, &k, &v, e),
             Command::Get(s) => self.get(stream, &s),
         }
     }
@@ -37,8 +37,14 @@ impl Redis {
         self.stream_resp_write(stream, s);
     }
 
-    fn set(&mut self, stream: &mut TcpStream, k: &str, v: &str) {
-        let _ = self.store.set(k, v, None);
+    fn set(
+        &mut self,
+        stream: &mut TcpStream,
+        k: &str,
+        v: &str,
+        expire_in_millisecs: Option<usize>,
+    ) {
+        let _ = self.store.set(k, v, expire_in_millisecs);
         self.ok(stream);
     }
 
@@ -72,10 +78,16 @@ fn eval_dt(dt: &DataType) -> Command {
                 match &s[..] {
                     "echo" => return Command::Echo(arr[1].try_into_string().unwrap()),
                     "set" => {
-                        return Command::Set(
-                            arr[1].try_into_string().unwrap(),
-                            arr[2].try_into_string().unwrap(),
-                        )
+                        let key = arr[1].try_into_string().unwrap();
+                        let value = arr[2].try_into_string().unwrap();
+                        let mut exp = None;
+
+                        if let Some(px) = arr.get(3) {
+                            if px.try_into_string().unwrap() == "px" {
+                                exp = Some(arr[4].try_into_usize().unwrap());
+                            }
+                        }
+                        return Command::Set(key, value, exp);
                     }
                     "get" => return Command::Get(arr[1].try_into_string().unwrap()),
                     _ => (),
