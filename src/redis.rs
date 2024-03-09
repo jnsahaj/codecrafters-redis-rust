@@ -1,15 +1,18 @@
-use std::{collections::HashMap, io::Write, net::TcpStream};
+use std::{io::Write, net::TcpStream};
 
-use crate::resp::{command::Command, data_type::DataType, parser::Parser, serializer::Serializer};
+use crate::{
+    resp::{command::Command, data_type::DataType, parser::Parser, serializer::Serializer},
+    store::Store,
+};
 
 pub struct Redis {
-    store: HashMap<String, String>,
+    store: Store,
 }
 
 impl Redis {
     pub fn new() -> Self {
         Self {
-            store: HashMap::new(),
+            store: Store::new(),
         }
     }
 
@@ -35,13 +38,13 @@ impl Redis {
     }
 
     fn set(&mut self, stream: &mut TcpStream, k: &str, v: &str) {
-        let _ = self.store.insert(k.into(), v.into());
+        let _ = self.store.set(k, v, None);
         self.ok(stream);
     }
 
     fn get(&mut self, stream: &mut TcpStream, s: &str) {
         match self.store.get(s) {
-            Some(v) => self.stream_resp_write(stream, v),
+            Some(v) => self.stream_resp_write(stream, &v),
             None => self.stream_resp_write(stream, ""),
         }
     }

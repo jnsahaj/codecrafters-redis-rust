@@ -1,5 +1,6 @@
 mod redis;
 mod resp;
+mod store;
 use std::{
     io::Read,
     net::{TcpListener, TcpStream},
