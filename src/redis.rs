@@ -1,60 +1,85 @@
-use std::{io::Write, net::TcpStream};
+use std::{collections::HashMap, io::Write, net::TcpStream};
 
 use crate::resp::{command::Command, data_type::DataType, parser::Parser, serializer::Serializer};
 
-pub struct Redis<'a> {
-    stream: &'a TcpStream,
+pub struct Redis {
+    store: HashMap<String, String>,
 }
 
-impl<'a> Redis<'a> {
-    pub fn new(stream: &'a TcpStream) -> Self {
-        Self { stream: &stream }
-    }
-
-    pub fn eval(&mut self, data: &[u8]) {
-        let mut parser = Parser::new(data);
-        let dt = parser.parse().unwrap();
-        let cmd = eval_dt(dt);
-
-        match cmd {
-            Command::Ping => self.pong(),
-            Command::Echo(s) => self.echo(&s),
+impl Redis {
+    pub fn new() -> Self {
+        Self {
+            store: HashMap::new(),
         }
     }
 
-    fn pong(&mut self) {
-        self.stream
-            .write_all(Serializer::to_simple_string("PONG").as_bytes())
-            .expect("Failed to write to stream!");
+    pub fn eval(&mut self, data: &[u8], stream: &mut TcpStream) {
+        let mut parser = Parser::new(data);
+        let dt = parser.parse().unwrap();
+        let cmd = eval_dt(&dt);
+
+        match cmd {
+            Command::Ping => self.pong(stream),
+            Command::Echo(s) => self.echo(stream, &s),
+            Command::Set(k, v) => self.set(stream, &k, &v),
+            Command::Get(s) => self.get(stream, &s),
+        }
     }
 
-    fn echo(&mut self, s: &str) {
-        self.stream
-            .write_all(Serializer::to_simple_string(s).as_bytes())
+    fn pong(&mut self, stream: &mut TcpStream) {
+        self.stream_resp_write(stream, "PONG");
+    }
+
+    fn echo(&mut self, stream: &mut TcpStream, s: &str) {
+        self.stream_resp_write(stream, s);
+    }
+
+    fn set(&mut self, stream: &mut TcpStream, k: &str, v: &str) {
+        let _ = self.store.insert(k.into(), v.into());
+        self.ok(stream);
+    }
+
+    fn get(&mut self, stream: &mut TcpStream, s: &str) {
+        match self.store.get(s) {
+            Some(v) => self.stream_resp_write(stream, v),
+            None => self.stream_resp_write(stream, ""),
+        }
+    }
+
+    fn ok(&mut self, stream: &mut TcpStream) {
+        self.stream_resp_write(stream, "OK");
+    }
+
+    fn stream_resp_write(&self, stream: &mut TcpStream, s: &str) {
+        stream
+            .write_all(Serializer::to_bulk_string(s).as_bytes())
             .expect("Failed to write to stream!");
     }
 }
 
-fn eval_dt(dt: DataType) -> Command {
+fn eval_dt(dt: &DataType) -> Command {
     let cmd = match dt {
-        DataType::SimpleString(s) => match &s[..] {
-            "ping" => Command::Ping,
-            _ => todo!(),
-        },
-        DataType::BulkString(s) => match &s[..] {
+        DataType::SimpleString(s) | DataType::BulkString(s) => match &s[..] {
             "ping" => Command::Ping,
             _ => todo!(),
         },
         DataType::Array(arr) => {
-            if arr[0].cmp_string("echo") {
-                return Command::Echo(arr[1].try_into_string().unwrap());
-            };
+            println!("ARRAY: {:?}", arr);
+            if let Ok(s) = arr[0].try_into_string() {
+                match &s[..] {
+                    "echo" => return Command::Echo(arr[1].try_into_string().unwrap()),
+                    "set" => {
+                        return Command::Set(
+                            arr[1].try_into_string().unwrap(),
+                            arr[2].try_into_string().unwrap(),
+                        )
+                    }
+                    "get" => return Command::Get(arr[1].try_into_string().unwrap()),
+                    _ => (),
+                }
+            }
 
-            if arr[0].cmp_string("ping") {
-                return Command::Ping;
-            };
-
-            Command::Ping
+            eval_dt(&arr[0])
         }
     };
 

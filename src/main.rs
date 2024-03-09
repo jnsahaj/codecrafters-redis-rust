@@ -3,12 +3,13 @@ mod resp;
 use std::{
     io::Read,
     net::{TcpListener, TcpStream},
+    sync::{Arc, Mutex},
     thread,
 };
 
 use crate::redis::Redis;
 
-fn handle_client(mut stream: TcpStream) {
+fn handle_client(mut stream: TcpStream, redis: Arc<Mutex<Redis>>) {
     let mut buf = [0u8; 1024];
 
     loop {
@@ -24,19 +25,21 @@ fn handle_client(mut stream: TcpStream) {
         println!("data (raw):  {:?}", buf);
         println!("data (str):  {:?}", String::from_utf8_lossy(&buf));
 
-        let mut redis = Redis::new(&stream);
-        redis.eval(&buf[..]);
+        let mut redis = redis.lock().unwrap();
+        redis.eval(&buf[..], &mut stream);
     }
 }
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:6379").unwrap();
+    let redis = Arc::new(Mutex::new(Redis::new()));
 
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
+                let redis = Arc::clone(&redis);
                 thread::spawn(move || {
-                    handle_client(stream);
+                    handle_client(stream, redis);
                 });
             }
             Err(e) => {

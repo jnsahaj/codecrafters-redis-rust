@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DataType {
     SimpleString(String),
     BulkString(String),

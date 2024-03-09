@@ -60,12 +60,8 @@ impl<'a> Parser<'a> {
     fn parse_arrays(&mut self) -> R<DataType> {
         self.next_byte();
 
-        let count = (self.b as char).to_digit(10).unwrap() as usize;
+        let count = self.read_number();
         let mut data_types = Vec::with_capacity(count.into());
-
-        self.next_byte();
-        self.next_byte();
-        self.next_byte();
 
         for _ in 0..count {
             data_types.push(self.parse()?);
@@ -77,12 +73,8 @@ impl<'a> Parser<'a> {
     fn parse_bulk_strings(&mut self) -> R<DataType> {
         self.next_byte();
 
-        let count = (self.b as char).to_digit(10).unwrap() as usize;
+        let count = self.read_number();
         let mut s = String::with_capacity(count.into());
-
-        self.next_byte();
-        self.next_byte();
-        self.next_byte();
 
         for _ in 0..count {
             s.push(self.b.to_ascii_lowercase() as char);
@@ -93,6 +85,19 @@ impl<'a> Parser<'a> {
         self.next_byte();
 
         Ok(DataType::BulkString(s))
+    }
+
+    fn read_number(&mut self) -> usize {
+        let mut s = String::new();
+        while self.b.is_ascii_digit() {
+            s.push(self.b as char);
+            self.next_byte();
+        }
+
+        self.next_byte();
+        self.next_byte();
+
+        s.parse::<usize>().unwrap()
     }
 
     fn is_cur_crlf(&self) -> bool {
