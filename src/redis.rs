@@ -1,17 +1,23 @@
-use std::{io::Write, net::TcpStream};
+use std::{
+    io::Write,
+    net::{SocketAddr, TcpStream},
+};
 
 use crate::{
+    info::Info,
     resp::{command::Command, data_type::DataType, parser::Parser, serializer::Serializer},
     store::Store,
 };
 
 pub struct Redis {
+    info: Info,
     store: Store,
 }
 
 impl Redis {
-    pub fn new() -> Self {
+    pub fn new(replicaof: Option<SocketAddr>) -> Self {
         Self {
+            info: Info { replicaof },
             store: Store::new(),
         }
     }
@@ -35,8 +41,14 @@ impl Redis {
     }
 
     fn info(&mut self, stream: &mut TcpStream, s: &str) {
+        let role = if self.info.replicaof.is_some() {
+            "slave"
+        } else {
+            "master"
+        };
+
         match s {
-            "replication" => self.stream_resp_write(stream, "role:master\n"),
+            "replication" => self.stream_resp_write(stream, &format!("role:{}\n", role)),
             _ => todo!(),
         }
     }

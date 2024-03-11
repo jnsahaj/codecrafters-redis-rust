@@ -1,9 +1,10 @@
+mod info;
 mod redis;
 mod resp;
 mod store;
 use std::{
     io::Read,
-    net::{TcpListener, TcpStream},
+    net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs},
     sync::{Arc, Mutex},
     thread,
 };
@@ -17,6 +18,9 @@ use crate::redis::Redis;
 struct Args {
     #[arg(long, default_value = "6379")]
     port: usize,
+
+    #[arg(long, num_args(2))]
+    replicaof: Option<Vec<String>>,
 }
 
 fn handle_client(mut stream: TcpStream, redis: Arc<Mutex<Redis>>) {
@@ -43,8 +47,13 @@ fn handle_client(mut stream: TcpStream, redis: Arc<Mutex<Redis>>) {
 fn main() {
     let args = Args::parse();
 
+    let replicaof = args
+        .replicaof
+        .map(|x| format!("{}:{}", &x[0], x[1]).to_socket_addrs().unwrap())
+        .map(|mut x| x.next().unwrap());
+
     let listener = TcpListener::bind(format!("127.0.0.1:{}", args.port)).unwrap();
-    let redis = Arc::new(Mutex::new(Redis::new()));
+    let redis = Arc::new(Mutex::new(Redis::new(replicaof)));
 
     for stream in listener.incoming() {
         match stream {
