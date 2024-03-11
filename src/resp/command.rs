@@ -3,4 +3,5 @@ pub enum Command {
     Echo(String),
     Set(String, String, Option<usize>),
     Get(String),
+    Info(String),
 }

@@ -26,11 +26,19 @@ impl Redis {
             Command::Echo(s) => self.echo(stream, &s),
             Command::Set(k, v, e) => self.set(stream, &k, &v, e),
             Command::Get(s) => self.get(stream, &s),
+            Command::Info(s) => self.info(stream, &s),
         }
     }
 
     fn echo(&mut self, stream: &mut TcpStream, s: &str) {
         self.stream_resp_write(stream, s);
+    }
+
+    fn info(&mut self, stream: &mut TcpStream, s: &str) {
+        match s {
+            "replication" => self.stream_resp_write(stream, "role:master\n"),
+            _ => todo!(),
+        }
     }
 
     fn set(
@@ -81,6 +89,7 @@ fn eval_dt(dt: &DataType) -> Command {
                         return Command::Set(key, value, exp);
                     }
                     "get" => return Command::Get(arr[1].try_into_string().unwrap()),
+                    "info" => return Command::Info(arr[1].try_into_string().unwrap()),
                     _ => (),
                 }
             }
