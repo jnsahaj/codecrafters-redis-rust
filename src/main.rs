@@ -8,7 +8,16 @@ use std::{
     thread,
 };
 
+use clap::Parser;
+
 use crate::redis::Redis;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[arg(long, default_value = "6379")]
+    port: usize,
+}
 
 fn handle_client(mut stream: TcpStream, redis: Arc<Mutex<Redis>>) {
     let mut buf = [0u8; 1024];
@@ -32,7 +41,9 @@ fn handle_client(mut stream: TcpStream, redis: Arc<Mutex<Redis>>) {
 }
 
 fn main() {
-    let listener = TcpListener::bind("127.0.0.1:6379").unwrap();
+    let args = Args::parse();
+
+    let listener = TcpListener::bind(format!("127.0.0.1:{}", args.port)).unwrap();
     let redis = Arc::new(Mutex::new(Redis::new()));
 
     for stream in listener.incoming() {
