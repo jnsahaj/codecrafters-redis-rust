@@ -3,13 +3,14 @@ mod redis;
 mod resp;
 mod store;
 use std::{
-    io::Read,
-    net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs},
+    io::{Read, Write},
+    net::{TcpListener, TcpStream, ToSocketAddrs},
     sync::{Arc, Mutex},
     thread,
 };
 
 use clap::Parser;
+use resp::data_type::{DataType, RespSerializable};
 
 use crate::redis::Redis;
 
@@ -54,6 +55,17 @@ fn main() {
 
     let listener = TcpListener::bind(format!("127.0.0.1:{}", args.port)).unwrap();
     let redis = Arc::new(Mutex::new(Redis::new(replicaof)));
+
+    if let Some(sa) = replicaof {
+        let mut stream = TcpStream::connect(sa).unwrap();
+        stream
+            .write_all(
+                DataType::Array(vec![DataType::BulkString("ping".into())])
+                    .serialize()
+                    .as_bytes(),
+            )
+            .expect("Failed to write to stream: Handshake");
+    }
 
     for stream in listener.incoming() {
         match stream {

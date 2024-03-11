@@ -5,7 +5,11 @@ use std::{
 
 use crate::{
     info::Info,
-    resp::{command::Command, data_type::DataType, parser::Parser, serializer::Serializer},
+    resp::{
+        command::Command,
+        data_type::{DataType, RespSerializable},
+        parser::Parser,
+    },
     store::Store,
 };
 
@@ -71,7 +75,7 @@ impl Redis {
 
     fn stream_resp_write(&self, stream: &mut TcpStream, s: &str) {
         stream
-            .write_all(Serializer::to_bulk_string(s).as_bytes())
+            .write_all(DataType::BulkString(s.into()).serialize().as_bytes())
             .expect("Failed to write to stream!");
     }
 }

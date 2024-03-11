@@ -22,3 +22,41 @@ impl DataType {
         }
     }
 }
+
+const NULL_RESP_STRING: &str = "$-1\r\n";
+const NULL_RESP_ARRAY: &str = "*0\r\n";
+
+pub trait RespSerializable {
+    fn serialize(&self) -> String;
+}
+
+impl RespSerializable for DataType {
+    fn serialize(&self) -> String {
+        match self {
+            DataType::SimpleString(s) => {
+                if s.is_empty() {
+                    return NULL_RESP_STRING.to_string();
+                }
+                format!("+{}\r\n", s)
+            }
+            DataType::BulkString(s) => {
+                if s.is_empty() {
+                    return NULL_RESP_STRING.to_string();
+                }
+
+                format!("${}\r\n{}\r\n", s.len(), s)
+            }
+            DataType::Array(arr) => {
+                if arr.is_empty() {
+                    return NULL_RESP_ARRAY.to_string();
+                }
+
+                format!(
+                    "*{}\r\n{}",
+                    arr.len(),
+                    arr.iter().map(|dt| dt.serialize()).collect::<String>()
+                )
+            }
+        }
+    }
+}
