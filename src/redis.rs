@@ -1,7 +1,6 @@
-use std::{
-    io::Write,
-    net::{SocketAddr, TcpStream},
-};
+use std::net::SocketAddr;
+
+use tokio::{io::AsyncWriteExt, net::TcpStream};
 
 use crate::{
     info::Info,
@@ -30,32 +29,44 @@ impl Redis {
         }
     }
 
-    pub fn eval(&mut self, data: &[u8], stream: &mut TcpStream) {
+    pub async fn eval(&mut self, data: &[u8], stream: &mut TcpStream) {
         let mut parser = Parser::new(data);
         let dt = parser.parse().unwrap();
         let cmd = eval_dt(&dt);
 
         match cmd {
-            Command::Ping => self.echo(stream, "PONG"),
-            Command::Echo(s) => self.echo(stream, &s),
-            Command::Set(k, v, e) => self.set(stream, &k, &v, e),
-            Command::Get(s) => self.get(stream, &s),
-            Command::Info(s) => self.info(stream, &s),
+            Command::Ping => self.echo(stream, "PONG").await,
+            Command::Echo(s) => self.echo(stream, &s).await,
+            Command::Set(k, v, e) => self.set(stream, &k, &v, e).await,
+            Command::Get(s) => self.get(stream, &s).await,
+            Command::Info(s) => self.info(stream, &s).await,
+            Command::Replconf(args) => self.replconf(stream, &args).await,
         }
     }
 
-    fn echo(&mut self, stream: &mut TcpStream, s: &str) {
-        self.stream_resp_write(stream, s);
+    async fn replconf(&self, stream: &mut TcpStream, _args: &[String]) {
+        self.echo(stream, "OK").await;
     }
 
-    fn info(&mut self, stream: &mut TcpStream, s: &str) {
+    async fn echo(&self, stream: &mut TcpStream, s: &str) {
+        self.stream_resp_write(stream, &DataType::BulkString(s.into()).serialize())
+            .await;
+    }
+
+    async fn info(&self, stream: &mut TcpStream, s: &str) {
         match s {
-            "replication" => self.stream_resp_write(stream, &self.info.to_string()),
+            "replication" => {
+                self.stream_resp_write(
+                    stream,
+                    &DataType::BulkString(self.info.to_string()).serialize(),
+                )
+                .await
+            }
             _ => todo!(),
         }
     }
 
-    fn set(
+    async fn set(
         &mut self,
         stream: &mut TcpStream,
         k: &str,
@@ -63,19 +74,26 @@ impl Redis {
         expire_in_millisecs: Option<usize>,
     ) {
         let _ = self.store.set(k, v, expire_in_millisecs);
-        self.echo(stream, "OK");
+        self.echo(stream, "OK").await;
     }
 
-    fn get(&mut self, stream: &mut TcpStream, s: &str) {
+    async fn get(&mut self, stream: &mut TcpStream, s: &str) {
         match self.store.get(s) {
-            Some(v) => self.stream_resp_write(stream, &v),
-            None => self.stream_resp_write(stream, ""),
+            Some(v) => {
+                self.stream_resp_write(stream, &DataType::BulkString(v.into()).serialize())
+                    .await
+            }
+            None => {
+                self.stream_resp_write(stream, &DataType::BulkString("".into()).serialize())
+                    .await
+            }
         }
     }
 
-    fn stream_resp_write(&self, stream: &mut TcpStream, s: &str) {
+    async fn stream_resp_write(&self, stream: &mut TcpStream, s: &str) {
         stream
-            .write_all(DataType::BulkString(s.into()).serialize().as_bytes())
+            .write_all(s.as_bytes())
+            .await
             .expect("Failed to write to stream!");
     }
 }
@@ -104,6 +122,11 @@ fn eval_dt(dt: &DataType) -> Command {
                     }
                     "get" => return Command::Get(arr[1].try_into_string().unwrap()),
                     "info" => return Command::Info(arr[1].try_into_string().unwrap()),
+                    "replconf" => {
+                        return Command::Replconf(
+                            arr.iter().map(|s| s.try_into_string().unwrap()).collect(),
+                        )
+                    }
                     _ => (),
                 }
             }

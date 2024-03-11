@@ -4,4 +4,5 @@ pub enum Command {
     Set(String, String, Option<usize>),
     Get(String),
     Info(String),
+    Replconf(Vec<String>),
 }
