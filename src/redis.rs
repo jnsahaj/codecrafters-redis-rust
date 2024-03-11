@@ -17,7 +17,11 @@ pub struct Redis {
 impl Redis {
     pub fn new(replicaof: Option<SocketAddr>) -> Self {
         Self {
-            info: Info { replicaof },
+            info: Info {
+                replicaof,
+                master_repl_offset: 0,
+                master_replid: "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb".into(),
+            },
             store: Store::new(),
         }
     }
@@ -41,14 +45,8 @@ impl Redis {
     }
 
     fn info(&mut self, stream: &mut TcpStream, s: &str) {
-        let role = if self.info.replicaof.is_some() {
-            "slave"
-        } else {
-            "master"
-        };
-
         match s {
-            "replication" => self.stream_resp_write(stream, &format!("role:{}\n", role)),
+            "replication" => self.stream_resp_write(stream, &self.info.to_string()),
             _ => todo!(),
         }
     }
