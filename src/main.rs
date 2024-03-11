@@ -2,7 +2,11 @@ mod info;
 mod redis;
 mod resp;
 mod store;
-use std::{net::ToSocketAddrs, sync::Arc};
+use std::{
+    net::{SocketAddr, ToSocketAddrs},
+    sync::Arc,
+    usize,
+};
 
 use crate::redis::Redis;
 use clap::Parser;
@@ -61,48 +65,7 @@ async fn main() {
     let redis = Arc::new(Mutex::new(Redis::new(replicaof)));
 
     if let Some(sa) = replicaof {
-        let mut buf = [0; 1024];
-        let mut stream = TcpStream::connect(sa).await.unwrap();
-        stream
-            .write_all(
-                DataType::Array(vec![DataType::BulkString("ping".into())])
-                    .serialize()
-                    .as_bytes(),
-            )
-            .await
-            .expect("Failed to write to stream: Handshake");
-
-        stream.read(&mut buf).await.unwrap();
-
-        stream
-            .write_all(
-                DataType::Array(vec![
-                    DataType::BulkString("REPLCONF".into()),
-                    DataType::BulkString("listening-port".into()),
-                    DataType::BulkString(args.port.to_string()),
-                ])
-                .serialize()
-                .as_bytes(),
-            )
-            .await
-            .unwrap();
-
-        stream.read(&mut buf).await.unwrap();
-
-        stream
-            .write_all(
-                DataType::Array(vec![
-                    DataType::BulkString("REPLCONF".into()),
-                    DataType::BulkString("capa".into()),
-                    DataType::BulkString("psync2".into()),
-                ])
-                .serialize()
-                .as_bytes(),
-            )
-            .await
-            .unwrap();
-
-        stream.read(&mut buf).await.unwrap();
+        replica_handshake(sa, args.port).await
     }
 
     while let Ok((socket, _)) = listener.accept().await {
@@ -113,4 +76,64 @@ async fn main() {
             handle_client(socket, redis).await;
         });
     }
+}
+
+async fn replica_handshake(master_socket_addr: SocketAddr, self_port: usize) {
+    let mut buf = [0; 1024];
+    let mut stream = TcpStream::connect(master_socket_addr).await.unwrap();
+    stream
+        .write_all(
+            DataType::Array(vec![DataType::BulkString("ping".into())])
+                .serialize()
+                .as_bytes(),
+        )
+        .await
+        .expect("Failed to write to stream: Handshake");
+
+    stream.read(&mut buf).await.unwrap();
+
+    stream
+        .write_all(
+            DataType::Array(vec![
+                DataType::BulkString("REPLCONF".into()),
+                DataType::BulkString("listening-port".into()),
+                DataType::BulkString(self_port.to_string()),
+            ])
+            .serialize()
+            .as_bytes(),
+        )
+        .await
+        .unwrap();
+
+    stream.read(&mut buf).await.unwrap();
+
+    stream
+        .write_all(
+            DataType::Array(vec![
+                DataType::BulkString("REPLCONF".into()),
+                DataType::BulkString("capa".into()),
+                DataType::BulkString("psync2".into()),
+            ])
+            .serialize()
+            .as_bytes(),
+        )
+        .await
+        .unwrap();
+
+    stream.read(&mut buf).await.unwrap();
+
+    stream
+        .write_all(
+            DataType::Array(vec![
+                DataType::BulkString("PSYNC".into()),
+                DataType::BulkString("?".into()),
+                DataType::BulkString("-1".into()),
+            ])
+            .serialize()
+            .as_bytes(),
+        )
+        .await
+        .unwrap();
+
+    stream.read(&mut buf).await.unwrap();
 }
