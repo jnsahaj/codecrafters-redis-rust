@@ -41,11 +41,24 @@ impl Redis {
             Command::Get(s) => self.get(stream, &s).await,
             Command::Info(s) => self.info(stream, &s).await,
             Command::Replconf(args) => self.replconf(stream, &args).await,
+            Command::Psync => self.psync(stream).await,
         }
     }
 
     async fn replconf(&self, stream: &mut TcpStream, _args: &[String]) {
         self.echo(stream, "OK").await;
+    }
+
+    async fn psync(&self, stream: &mut TcpStream) {
+        self.stream_resp_write(
+            stream,
+            &DataType::SimpleString(format!(
+                "FULLRESYNC {} {}",
+                self.info.master_replid, self.info.master_repl_offset
+            ))
+            .serialize(),
+        )
+        .await;
     }
 
     async fn echo(&self, stream: &mut TcpStream, s: &str) {
@@ -127,6 +140,7 @@ fn eval_dt(dt: &DataType) -> Command {
                             arr.iter().map(|s| s.try_into_string().unwrap()).collect(),
                         )
                     }
+                    "psync" => return Command::Psync,
                     _ => (),
                 }
             }

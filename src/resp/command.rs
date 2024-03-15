@@ -5,4 +5,5 @@ pub enum Command {
     Get(String),
     Info(String),
     Replconf(Vec<String>),
+    Psync,
 }
