@@ -88,7 +88,7 @@ async fn replica_handshake(master_socket_addr: SocketAddr, self_port: usize) {
                 .as_bytes(),
         )
         .await
-        .expect("Failed to write to stream: Handshake");
+        .expect("Failed to write to stream: replica handshake");
 
     stream.read(&mut buf).await.unwrap();
 
