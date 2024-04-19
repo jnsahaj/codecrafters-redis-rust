@@ -69,8 +69,6 @@ async fn main() {
     }
 
     while let Ok((socket, _)) = listener.accept().await {
-        // A new task is spawned for each inbound socket. The socket is
-        // moved to the new task and processed there.
         let redis = Arc::clone(&redis);
         tokio::spawn(async move {
             handle_client(socket, redis).await;
